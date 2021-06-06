@@ -22,10 +22,10 @@ Measure-Command{
 Measure-Command{
     # ThreadJob Test
 
-    $groupSize=[math]::Ceiling($directories.Count/10)
-    $counter=[pscustomobject]@{Value=0}
-    $groups=$directories|Group-Object -Property {
-        [math]::Floor($counter.Value++/$groupSize)
+    $groupSize = [math]::Ceiling($directories.Count/10)
+    $counter = [pscustomobject]@{ Value = 0 }
+    $groups = $directories | Group-Object -Property {
+        [math]::Floor($counter.Value++ / $groupSize)
     }
 
     foreach($group in $groups)
@@ -41,8 +41,8 @@ Measure-Command{
         } -ThrottleLimit 10 -ArgumentList $group.Group
     }
         
-    $resultThread = Get-Job|Wait-Job|Receive-Job
-    Get-Job|Remove-Job
+    $resultThread = Get-Job | Wait-Job | Receive-Job
+    Get-Job | Remove-Job
 }
 
 Measure-Command{
@@ -51,10 +51,10 @@ Measure-Command{
     $RunspacePool = [runspacefactory]::CreateRunspacePool(1,10)
     $RunspacePool.Open()
 
-    $groupSize=[math]::Ceiling($directories.Count/10)
-    $counter=[pscustomobject]@{Value=0}
-    $groups=$directories|Group-Object -Property {
-        [math]::Floor($counter.Value++/$groupSize)
+    $groupSize = [math]::Ceiling($directories.Count/10)
+    $counter = [pscustomobject]@{ Value = 0 }
+    $groups = $directories | Group-Object -Property {
+        [math]::Floor($counter.Value++ / $groupSize)
     }
 
     $runspaces = foreach($group in $groups)
@@ -79,14 +79,14 @@ Measure-Command{
         }
     }
 
-    while($runspaces|Where-Object{-not $_.IAResult.IsCompleted})
+    while($runspaces | Where-Object {-not $_.IAResult.IsCompleted})
     {
         Start-Sleep -Milliseconds 500
     }
 
     $resultRunspace = [collections.generic.list[pscustomobject]]::new()
 
-    $Runspaces|ForEach-Object {
+    $Runspaces | ForEach-Object {
         foreach($item in $_.Instance.EndInvoke($_.IAResult))
         {
             $resultRunspace.Add(
@@ -105,21 +105,39 @@ Measure-Command{
     Test = 'Linear'
     TotalSeconds = $measures[0].TotalSeconds
     NumberOfFolders = $resultLinear.Count
-    NumberOfFiles = $($i=0;$resultLinear.numberOfFiles.foreach({$i=$i+$_});$i)
+    NumberOfFiles = $(
+        $i=0
+        $resultLinear.numberOfFiles.foreach({
+            $i = $i+$_
+        })
+        $i
+    )
 }
 
 [pscustomobject]@{
     Test = 'ThreadJob'
     TotalSeconds = $measures[1].TotalSeconds
     NumberOfFolders = $resultThread.Count
-    NumberOfFiles = $($i=0;$resultThread.numberOfFiles.foreach({$i=$i+$_});$i)
+    NumberOfFiles = $(
+        $i=0
+        $resultLinear.numberOfFiles.foreach({
+            $i = $i+$_
+        })
+        $i
+    )
 }
 
 [pscustomobject]@{
     Test = 'RunSpace'
     TotalSeconds = $measures[2].TotalSeconds
     NumberOfFolders = $resultRunspace.Count
-    NumberOfFiles = $($i=0;$resultRunspace.numberOfFiles.foreach({$i=$i+$_});$i)
-})|ft -auto
+    NumberOfFiles = $(
+        $i=0
+        $resultLinear.numberOfFiles.foreach({
+            $i = $i+$_
+        })
+        $i
+    )
+}) | Format-Table -AutoSize
 
-Get-Variable|Remove-Variable -EA SilentlyContinue
+Get-Variable | Remove-Variable -EA SilentlyContinue
