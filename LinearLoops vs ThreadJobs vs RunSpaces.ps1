@@ -1,139 +1,130 @@
 # requires -Modules ThreadJob
+$ErrorActionPreference = 'SilentlyContinue'
 
-$directories = Get-ChildItem D:\ -Directory -Recurse -EA SilentlyContinue
-
+$directories = Get-ChildItem C:\ -Directory -Recurse
 $numberOfThreads = ((Get-CimInstance win32_processor).NumberOfLogicalProcessors | Measure-Object -Sum).Sum
+# $numberOfThreads = 10
+$numberOfTestRuns = 5
 
-$measures = @(
+$testBlock = {
 
-Measure-Command{
+    $linearMeasure = Measure-Command {
     # Linear Test
     
-    $resultLinear = foreach($directory in $directories)
-    {
-        [pscustomobject]@{
-            DirectoryFullName = $directory.FullName
-            NumberOfFiles = (Get-ChildItem $directory.FullName -File).count
-        }
-    }
-}
-
-Measure-Command{
-    # ThreadJob Test
-
-    $groupSize = [math]::Ceiling($directories.Count / $numberOfThreads)
-    $counter = [pscustomobject]@{ Value = 0 }
-    $groups = $directories | Group-Object -Property {
-        [math]::Floor($counter.Value++ / $groupSize)
-    }
-
-    foreach($group in $groups)
-    {
-        Start-ThreadJob{
-            foreach($chunk in $args)
-            {
-                [pscustomobject]@{
-                    DirectoryFullName = $chunk.FullName
-                    NumberOfFiles = (Get-ChildItem $chunk.fullName -File).count
-                }
-            }
-        } -ThrottleLimit $numberOfThreads -ArgumentList $group.Group
-    }
-        
-    $resultThread = Get-Job | Receive-Job -Wait
-    Get-Job | Remove-Job
-}
-
-Measure-Command{
-    #RunSpace Test
-
-    $RunspacePool = [runspacefactory]::CreateRunspacePool(1, $numberOfThreads)
-    $RunspacePool.Open()
-
-    $groupSize = [math]::Ceiling($directories.Count / $numberOfThreads)
-    $counter = [pscustomobject]@{ Value = 0 }
-    $groups = $directories | Group-Object -Property {
-        [math]::Floor($counter.Value++ / $groupSize)
-    }
-
-    $runspaces = foreach($group in $groups)
-    {
-        $PSInstance = [powershell]::Create().AddScript({
-            param($chunks)
-
-            foreach($chunk in $chunks)
-            {
-                [pscustomobject]@{
-                    DirectoryFullName = $chunk.FullName
-                    NumberOfFiles = (Get-ChildItem $chunk.fullName -File).count
-                }
-            }
-        }).AddParameter('chunks',$group.group)
-
-        $PSInstance.RunspacePool = $RunspacePool
-
-        [pscustomobject]@{
-            Instance = $PSInstance
-            IAResult = $PSInstance.BeginInvoke()
-        }
-    }
-
-    while($runspaces | Where-Object {-not $_.IAResult.IsCompleted})
-    {
-        Start-Sleep -Milliseconds 50
-    }
-
-    $resultRunspace = $Runspaces | ForEach-Object {
-        foreach($item in $_.Instance.EndInvoke($_.IAResult))
+        $resultLinear = foreach($directory in $directories)
         {
             [pscustomobject]@{
-                DirectoryFullName = $item.DirectoryFullName
-                NumberOfFiles = $item.NumberOfFiles
+                DirectoryFullName = $directory.FullName
+                NumberOfFiles = (Get-ChildItem $directory.FullName -File).count
             }
         }
     }
 
-    $RunspacePool.Dispose()
-})
+    [pscustomobject]@{
+        TestRun = $_
+        Test = 'Linear'
+        TotalSeconds = $linearMeasure.TotalSeconds
+        NumberOfFolders = $resultLinear.Count
+        NumberOfFiles = ($resultLinear.numberOfFiles | Measure-Object -Sum).Sum
+    }
 
-@(
-[pscustomobject]@{
-    Test = 'Linear'
-    TotalSeconds = $measures[0].TotalSeconds
-    NumberOfFolders = $resultLinear.Count
-    NumberOfFiles = $(
-        $i=0
-        $resultLinear.numberOfFiles.foreach({
-            $i = $i+$_
-        })
-        $i
-    )
+    $threadJobMeasure = Measure-Command {
+        # ThreadJob Test
+
+        $groupSize = [math]::Ceiling($directories.Count / $numberOfThreads)
+        $counter = [pscustomobject]@{ Value = 0 }
+        $groups = $directories | Group-Object -Property {
+            [math]::Floor($counter.Value++ / $groupSize)
+        }
+
+        foreach($group in $groups)
+        {
+            Start-ThreadJob{
+                foreach($chunk in $args)
+                {
+                    [pscustomobject]@{
+                        DirectoryFullName = $chunk.FullName
+                        NumberOfFiles = (Get-ChildItem $chunk.fullName -File).count
+                    }
+                }
+            } -ThrottleLimit $numberOfThreads -ArgumentList $group.Group
+        }
+        
+        $resultThreadJob = Get-Job | Receive-Job -Wait
+        Get-Job | Remove-Job
+    }
+
+    [pscustomobject]@{
+        TestRun = $_
+        Test = 'ThreadJob'
+        TotalSeconds = $threadJobMeasure.TotalSeconds
+        NumberOfFolders = $resultThreadJob.Count
+        NumberOfFiles = ($resultThreadJob.numberOfFiles | Measure-Object -Sum).Sum
+    }
+
+    $runSpaceMeasure = Measure-Command {
+        #RunSpace Test
+
+        $RunspacePool = [runspacefactory]::CreateRunspacePool(1, $numberOfThreads)
+        $RunspacePool.Open()
+
+        $groupSize = [math]::Ceiling($directories.Count / $numberOfThreads)
+        $counter = [pscustomobject]@{ Value = 0 }
+        $groups = $directories | Group-Object -Property {
+            [math]::Floor($counter.Value++ / $groupSize)
+        }
+
+        $runspaces = foreach($group in $groups)
+        {
+            $PSInstance = [powershell]::Create().AddScript({
+                param($chunks)
+
+                foreach($chunk in $chunks)
+                {
+                    [pscustomobject]@{
+                        DirectoryFullName = $chunk.FullName
+                        NumberOfFiles = (Get-ChildItem $chunk.fullName -File).count
+                    }
+                }
+            }).AddParameter('chunks',$group.group)
+
+            $PSInstance.RunspacePool = $RunspacePool
+
+            [pscustomobject]@{
+                Instance = $PSInstance
+                IAResult = $PSInstance.BeginInvoke()
+            }
+        }
+
+        while($runspaces | Where-Object {-not $_.IAResult.IsCompleted})
+        {
+            Start-Sleep -Milliseconds 50
+        }
+
+        $resultRunspace = $Runspaces | ForEach-Object {
+            foreach($item in $_.Instance.EndInvoke($_.IAResult))
+            {
+                [pscustomobject]@{
+                    DirectoryFullName = $item.DirectoryFullName
+                    NumberOfFiles = $item.NumberOfFiles
+                }
+            }
+        }
+
+        $RunspacePool.Dispose()
+    }
+
+    [pscustomobject]@{
+        TestRun = $_
+        Test = 'RunSpace'
+        TotalSeconds = $runSpaceMeasure.TotalSeconds
+        NumberOfFolders = $resultRunSpace.Count
+        NumberOfFiles = ($resultRunSpace.numberOfFiles | Measure-Object -Sum).Sum
+    }
+
+    Get-Variable | Remove-Variable
 }
 
-[pscustomobject]@{
-    Test = 'ThreadJob'
-    TotalSeconds = $measures[1].TotalSeconds
-    NumberOfFolders = $resultThread.Count
-    NumberOfFiles = $(
-        $i=0
-        $resultLinear.numberOfFiles.foreach({
-            $i = $i+$_
-        })
-        $i
-    )
-}
-
-[pscustomobject]@{
-    Test = 'RunSpace'
-    TotalSeconds = $measures[2].TotalSeconds
-    NumberOfFolders = $resultRunspace.Count
-    NumberOfFiles = $(
-        $i=0
-        $resultLinear.numberOfFiles.foreach({
-            $i = $i+$_
-        })
-        $i
-    )
-}) | Format-Table -AutoSize
-
-Get-Variable | Remove-Variable -EA SilentlyContinue
+1..$numberOfTestRuns | ForEach-Object {
+    & $testBlock
+} | Sort-Object TotalSeconds | Format-Table -AutoSize
