@@ -1,6 +1,8 @@
 # requires -Modules ThreadJob
 
-$directories = Get-ChildItem $home -Directory -Recurse -EA SilentlyContinue
+$directories = Get-ChildItem D:\ -Directory -Recurse -EA SilentlyContinue
+
+$numberOfThreads = ((Get-CimInstance win32_processor).NumberOfLogicalProcessors | Measure-Object -Sum).Sum
 
 $measures = @(
 
@@ -19,7 +21,7 @@ Measure-Command{
 Measure-Command{
     # ThreadJob Test
 
-    $groupSize = [math]::Ceiling($directories.Count/10)
+    $groupSize = [math]::Ceiling($directories.Count / $numberOfThreads)
     $counter = [pscustomobject]@{ Value = 0 }
     $groups = $directories | Group-Object -Property {
         [math]::Floor($counter.Value++ / $groupSize)
@@ -35,7 +37,7 @@ Measure-Command{
                     NumberOfFiles = (Get-ChildItem $chunk.fullName -File).count
                 }
             }
-        } -ThrottleLimit 10 -ArgumentList $group.Group
+        } -ThrottleLimit $numberOfThreads -ArgumentList $group.Group
     }
         
     $resultThread = Get-Job | Receive-Job -Wait
@@ -45,10 +47,10 @@ Measure-Command{
 Measure-Command{
     #RunSpace Test
 
-    $RunspacePool = [runspacefactory]::CreateRunspacePool(1,10)
+    $RunspacePool = [runspacefactory]::CreateRunspacePool(1, $numberOfThreads)
     $RunspacePool.Open()
 
-    $groupSize = [math]::Ceiling($directories.Count/10)
+    $groupSize = [math]::Ceiling($directories.Count / $numberOfThreads)
     $counter = [pscustomobject]@{ Value = 0 }
     $groups = $directories | Group-Object -Property {
         [math]::Floor($counter.Value++ / $groupSize)
