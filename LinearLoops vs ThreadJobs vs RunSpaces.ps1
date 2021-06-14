@@ -6,16 +6,13 @@ $measures = @(
 
 Measure-Command{
     # Linear Test
-
-    $resultLinear = [collections.generic.list[pscustomobject]]::new()
     
-    foreach($directory in $directories)
+    $resultLinear = foreach($directory in $directories)
     {
-        $resultLinear.Add(
-            [pscustomobject]@{
-                DirectoryFullName = $directory.FullName
-                NumberOfFiles = (Get-ChildItem $directory.FullName -File).count
-        })
+        [pscustomobject]@{
+            DirectoryFullName = $directory.FullName
+            NumberOfFiles = (Get-ChildItem $directory.FullName -File).count
+        }
     }
 }
 
@@ -41,7 +38,7 @@ Measure-Command{
         } -ThrottleLimit 10 -ArgumentList $group.Group
     }
         
-    $resultThread = Get-Job | Wait-Job | Receive-Job
+    $resultThread = Get-Job | Receive-Job -Wait
     Get-Job | Remove-Job
 }
 
@@ -81,19 +78,16 @@ Measure-Command{
 
     while($runspaces | Where-Object {-not $_.IAResult.IsCompleted})
     {
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds 50
     }
 
-    $resultRunspace = [collections.generic.list[pscustomobject]]::new()
-
-    $Runspaces | ForEach-Object {
+    $resultRunspace = $Runspaces | ForEach-Object {
         foreach($item in $_.Instance.EndInvoke($_.IAResult))
         {
-            $resultRunspace.Add(
-                [pscustomobject]@{
-                    DirectoryFullName = $item.DirectoryFullName
-                    NumberOfFiles = $item.NumberOfFiles
-            })
+            [pscustomobject]@{
+                DirectoryFullName = $item.DirectoryFullName
+                NumberOfFiles = $item.NumberOfFiles
+            }
         }
     }
 
