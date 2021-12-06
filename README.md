@@ -15,11 +15,11 @@ The tests consist on first gathering all directories (recursive) from a starting
 
 ### Init Variables
 
-- __`$initialDirectory`__ the initial directory to begin the test, i.e.: `C:\user\Documents`.
-- __`$numberOfThreads`__ by default is set to __10__, this number can be tweaked to get better results.
+- __`$initialDirectory`__ The initial directory to begin the test, i.e.: `C:\user\Documents`.
+- __`$numberOfThreads`__ By default is set to __10__, this number can be tweaked to get better results.
 - __`$numberOfTestRuns`__ The number of Test Cases we want to perform, by default its set to __5__.
-- __`$TestForEachObject`__ by default is set to `$true`, if this test is ran on Windows Powershell, it should be set to `$false` since `ForEach-Object -Parallel` was implemented on PS Core.
-- __`$TestThreadJob`__ by default is set to `$true`, if you don't have the `ThreadJob` module installed set this to `$false`.
+- __`$TestForEachObject`__ By default is set to `$true`, set to `$false` if not on PowerShell Core.
+- __`$TestThreadJob`__ By default is set to `$true`, set to `$false` if the `ThreadJob` module is not installed.
 
 ### Results
 
