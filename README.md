@@ -1,40 +1,56 @@
-# Linear Loops vs ThreadJob vs Runspace
+# Multithreading Perfomance on PowerShell
 
-This script is meant to mainly test how good does the `ThreadJob Module` performs vs `Runspace` when looping through local directories.
+These series of tests are meant to understand how well do Linear Loops (`foreach`) perform against the different multithreading options we have on PowerShell.<br>
+The tests consist on first gathering all directories (recursive) from a starting folder (`$initialDirectory`) and looping through each folder to get the count of all the files.<br>
+
+### Tests
+- [`foreach`](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_foreach?view=powershell-7.2)
+- [`Start-Job`](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/start-job?view=powershell-7.2)
+- [`Start-ThreadJob`](https://docs.microsoft.com/en-us/powershell/module/threadjob/start-threadjob?view=powershell-7.2)
+- [`Runspace`](https://docs.microsoft.com/en-us/dotnet/api/system.management.automation.runspaces.runspace?view=powershellsdk-7.0.0)
+- [`ForEach-Object -Parallel`](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/foreach-object?view=powershell-7.2)
 
 ### Requirements
-- PowerShell v5.1
-- [ThreadJob Module](https://docs.microsoft.com/en-us/powershell/module/threadjob/start-threadjob?view=powershell-7.1&viewFallbackFrom=powershell-5.1)
+- PowerShell v5.1+
 
 ### Init Variables
 
-- `$numberOfThreads` Normally we use `((Get-CimInstance win32_processor).NumberOfLogicalProcessors | Measure-Object -Sum).Sum`, however this number can be tweaked to get better results.
-- `$numberOfTestRuns` The number of Test Cases we want to perform, by default its set to **5**
+- __`$initialDirectory`__ the initial directory to begin the test, i.e.: `C:\user\Documents`.
+- __`$numberOfThreads`__ by default is set to __10__, this number can be tweaked to get better results.
+- __`$numberOfTestRuns`__ The number of Test Cases we want to perform, by default its set to __5__.
+- __`$TestForEachObject`__ by default is set to `$true`, if this test is ran on Windows Powershell, it should be set to `$false` since `ForEach-Object -Parallel` was implemented on PS Core.
+- __`$TestThreadJob`__ by default is set to `$true`, if you don't have the `ThreadJob` module installed set this to `$false`.
 
 ### Results
 
 - By default, results are sorted by `TotalSeconds`:
 
 ```
-TestRun Test      TotalSeconds NumberOfFolders NumberOfFiles
-------- ----      ------------ --------------- -------------
-      3 ThreadJob    4.8891603            3709        142367
-      2 ThreadJob    4.9398637            3709        142367
-      4 ThreadJob     4.943194            3709        142367
-      5 ThreadJob    4.9602689            3709        142367
-      1 ThreadJob    4.9841981            3709        142367
-      1 RunSpace     5.2052934            3709        142367
-      5 RunSpace     5.2290481            3709        142367
-      3 RunSpace     5.2677655            3709        142367
-      2 RunSpace      5.359765            3709        142367
-      4 RunSpace     5.5090859            3709        142367
-      4 Linear       6.8770682            3709        142367
-      2 Linear       6.9006135            3709        142367
-      5 Linear       7.1451586            3709        142367
-      1 Linear       7.1719337            3709        142367
-      3 Linear       7.2723745            3709        142367
+TestRun Test                     TotalSeconds NumberOfFolders NumberOfFiles
+------- ----                     ------------ --------------- -------------
+      5 RunSpace                    1.4467082            1109         14142
+      4 RunSpace                    1.4536342            1109         14142
+      3 RunSpace                    1.4733609            1109         14142
+      5 Start-ThreadJob             1.4939372            1109         14142
+      1 Start-ThreadJob             1.5183739            1109         14142
+      2 Start-ThreadJob             1.5588786            1109         14142
+      2 RunSpace                    1.5638541            1109         14142
+      3 Start-ThreadJob             1.5780027            1109         14142
+      4 Start-ThreadJob             1.7246104            1109         14142
+      1 RunSpace                    1.8515854            1109         14142
+      2 Linear                      1.9031116            1109         14142
+      3 Linear                      1.9369417            1109         14142
+      5 Linear                      1.9748949            1109         14142
+      1 Linear                       2.016238            1109         14142
+      4 Linear                      2.6118708            1109         14142
+      1 ForEach-Object -Parallel    3.7749827            1109         14142
+      4 ForEach-Object -Parallel    3.8035109            1109         14142
+      5 ForEach-Object -Parallel    3.8591055            1109         14142
+      2 ForEach-Object -Parallel    3.9026964            1109         14142
+      3 ForEach-Object -Parallel    4.7344062            1109         14142
+      5 Start-Job                   5.0805633            1109         14142
+      4 Start-Job                   5.3252725            1109         14142
+      3 Start-Job                   5.4109967            1109         14142
+      2 Start-Job                    7.038974            1109         14142
+      1 Start-Job                   8.5424708            1109         14142
 ```
-
-### Credits
-
-All credits on the `Runspace` code goes to Mathias R. Jessen and his awesome answer on StackOverflow [here](https://stackoverflow.com/a/41797153/15339544).
