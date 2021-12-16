@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'SilentlyContinue'
 
 # Define Init Variables
-$initialDirectory = '/home/zen/Downloads'
+$initialDirectory = '/home/user/'
 $directories = Get-ChildItem $initialDirectory -Directory -Recurse
 $TestForEachObject = $true # => Set to $false if not on PS COre
 $TestThreadJob = $true # => Set to $false if no ThreadJob Module
